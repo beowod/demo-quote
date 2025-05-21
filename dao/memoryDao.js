@@ -1,27 +1,54 @@
 // dao/memoryDao.js
-const inventory    = { small:10, medium:8, large:5, xlarge:3 };
+
+// in-memory store: branches → sizes
+const inventoryStore = {
+  MAIN: { small:3, medium:6, large:9, xlarge:12 },
+  // you can seed other branches here
+};
+
+// simple reservation store
 const reservations = [];
-let lastQuote = 0;
 
 module.exports = {
-  init: () => Promise.resolve(),
-
-  getInventory: () => Promise.resolve({ ...inventory }),
-
-  adjustInventory: (size, qty) => {
-    inventory[size] -= qty;
-    return Promise.resolve();
+  async getInventory(branch = 'MAIN') {
+    return { ... (inventoryStore[branch] || {}) };
   },
 
-  getLastQuote: () => Promise.resolve(lastQuote),
-
-  setLastQuote: (quote) => {
-    lastQuote = quote;
-    return Promise.resolve();
+  async adjustInventory(size, qty, branch = 'MAIN') {
+    inventoryStore[branch][size] -= qty;
   },
 
-  createReservation: (reservation) => {
-    reservations.push(reservation);
-    return Promise.resolve(reservation.id);
+  async releaseInventory(size, qty, branch = 'MAIN') {
+    inventoryStore[branch][size] += qty;
   },
+
+  async createReservation(res) {
+    reservations.push({ ...res });
+  },
+
+  async getReservation(id, email) {
+    return reservations.find(r =>
+      r.id === id && r.customerEmail === email
+    ) || null;
+  },
+
+  async cancelReservation(id, email) {
+    const r = reservations.find(x =>
+      x.id === id && x.customerEmail === email
+    );
+    if (r) {
+      r.status = 'cancelled';
+      r.cancelledAt = new Date().toISOString();
+    }
+  },
+
+  async getCancellationMetrics() {
+    return reservations.filter(r => r.status === 'cancelled').length;
+  },
+  async getAllReservations() {
+    return reservations.map(r => ({ ...r }));
+  },
+  async getReservationById(id) {
+    return reservations.find(r => r.id === id) || null;
+  }
 };

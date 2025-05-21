@@ -1,16 +1,15 @@
-// routes/inventory.js
+// routes/metrics.js
 
 const express = require('express');
 const dao     = require('../dao/dataFacade');
 const router  = express.Router();
 
-router.get('/', async (req, res) => {
-  const branch = req.query.branch || 'MAIN';
+router.get('/cancellations', async (req, res) => {
   try {
-    const inv = await dao.getInventory(branch);
-    res.json(inv);
+    const count = await dao.getCancellationMetrics();
+    res.json({ cancelledReservations: count });
   } catch (err) {
-    console.error('Inventory error', err);
+    console.error('Metrics error', err);
     res.status(500).json({ error: 'error interno' });
   }
 });

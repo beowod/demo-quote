@@ -1,8 +1,22 @@
-// Data Facade - chooses DAO implementation
-let dao;
+// dao/dataFacade.js
+
+// pick your implementation:
+let impl = null;
 try {
-  dao = require('./sqliteDao');
-} catch (e) {
-  dao = require('./memoryDao');
+  impl = require('./sqliteDao');
+} catch(_) {
+  impl = require('./memoryDao');
 }
-module.exports = dao;
+
+module.exports = {
+  getInventory:        (...args) => impl.getInventory(...args),
+  adjustInventory:     (...args) => impl.adjustInventory(...args),
+  releaseInventory:    (...args) => impl.releaseInventory(...args),
+  createReservation:   (res)    => impl.createReservation(res),
+  getReservation:      (id,em)  => impl.getReservation(id,em),
+  cancelReservation:   (id,em)  => impl.cancelReservation(id,em),
+  getCancellationMetrics: ()    => impl.getCancellationMetrics(),
+  getAllReservations:  ()        => impl.getAllReservations(),
+  getReservationById:  (id)      => impl.getReservationById(id)
+
+};

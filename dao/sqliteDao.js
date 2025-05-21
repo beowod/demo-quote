@@ -1,60 +1,127 @@
 // dao/sqliteDao.js
+
 const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database(process.env.DATABASE_FILE || './data/demo.db');
+const path    = require('path');
+const dbFile  = path.join(__dirname, '../data/demo.db');
+const db      = new sqlite3.Database(dbFile);
 
 module.exports = {
-  init: () => Promise.resolve(),
+  getInventory(branch = 'MAIN') {
+    return new Promise((resolve, reject) => {
+      db.all(
+        'SELECT size, available FROM inventory WHERE branch = ?',
+        [branch],
+        (err, rows) => {
+          if (err) return reject(err);
+          const out = {};
+          rows.forEach(r => out[r.size] = r.available);
+          resolve(out);
+        }
+      );
+    });
+  },
 
-  getInventory: () =>
-    new Promise((resolve, reject) =>
-      db.all('SELECT size, available FROM inventory', (e, rows) =>
-        e ? reject(e) : resolve(rows.reduce((acc, r) => (acc[r.size]=r.available, acc), {}))
-      )
-    ),
-
-  adjustInventory: (size, qty) =>
-    new Promise((resolve, reject) =>
-      db.run('UPDATE inventory SET available = available - ? WHERE size = ?', [qty, size], e =>
-        e ? reject(e) : resolve()
-      )
-    ),
-
-  getLastQuote: () =>
-    new Promise((resolve, reject) =>
-      db.get('SELECT quote FROM lastQuote WHERE id = 1', (e, row) =>
-        e ? reject(e) : resolve(row ? row.quote : 0)
-      )
-    ),
-
-  setLastQuote: (quote) =>
-    new Promise((resolve, reject) =>
+  adjustInventory(size, qty, branch = 'MAIN') {
+    return new Promise((resolve, reject) => {
       db.run(
-        `INSERT INTO lastQuote (id, quote) VALUES (1, ?)
-         ON CONFLICT(id) DO UPDATE SET quote = excluded.quote`,
-        [quote],
-        e => e ? reject(e) : resolve()
-      )
-    ),
+        'UPDATE inventory SET available = available - ? WHERE branch = ? AND size = ?',
+        [qty, branch, size],
+        err => err ? reject(err) : resolve()
+      );
+    });
+  },
 
-  createReservation: (reservation) =>
-    new Promise((resolve, reject) =>
+  releaseInventory(size, qty, branch = 'MAIN') {
+    return new Promise((resolve, reject) => {
       db.run(
-        `INSERT INTO reservations 
-         (id,size,quantity,startDate,endDate,customerName,customerEmail,customerPhone,quote,timestamp)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        'UPDATE inventory SET available = available + ? WHERE branch = ? AND size = ?',
+        [qty, branch, size],
+        err => err ? reject(err) : resolve()
+      );
+    });
+  },
+
+  createReservation(res) {
+    const {
+      id, branch, size, quantity,
+      startDate, endDate,
+      customerName, customerEmail, customerPhone,
+      quote, timestamp, status = 'active', cancelledAt = null
+    } = res;
+    return new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO reservations (
+           id, branch, size, quantity,
+           startDate, endDate,
+           customerName, customerEmail, customerPhone,
+           quote, timestamp, status, cancelledAt
+         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
-          reservation.id,
-          reservation.size,
-          reservation.quantity,
-          reservation.startDate,
-          reservation.endDate,
-          reservation.customerName,
-          reservation.customerEmail,
-          reservation.customerPhone,
-          reservation.quote,
-          reservation.timestamp
+          id, branch, size, quantity,
+          startDate, endDate,
+          customerName, customerEmail, customerPhone,
+          quote, timestamp, status, cancelledAt
         ],
-        e => e ? reject(e) : resolve(reservation.id)
-      )
-    )
+        err => err ? reject(err) : resolve()
+      );
+    });
+  },
+
+  getReservation(id, email) {
+    return new Promise((resolve, reject) => {
+      db.get(
+        `SELECT * FROM reservations
+         WHERE id = ? AND customerEmail = ?`,
+        [id, email],
+        (err, row) => err
+          ? reject(err)
+          : resolve(row || null)
+      );
+    });
+  },
+
+  cancelReservation(id, email) {
+    const now = new Date().toISOString();
+    return new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE reservations
+         SET status = 'cancelled',
+             cancelledAt = ?
+         WHERE id = ? AND customerEmail = ?`,
+        [now, id, email],
+        err => err ? reject(err) : resolve()
+      );
+    });
+  },
+
+  getCancellationMetrics() {
+    return new Promise((resolve, reject) => {
+      db.get(
+        `SELECT COUNT(*) AS cnt
+         FROM reservations
+         WHERE status = 'cancelled'`,
+        (err, row) => err
+          ? reject(err)
+          : resolve(row.cnt)
+      );
+    });
+  },
+    getAllReservations() {
+        return new Promise((resolve, reject) => {
+          db.all(
+            'SELECT * FROM reservations',
+            [],
+            (err, rows) => err ? reject(err) : resolve(rows)
+          );
+        });
+      },
+      getReservationById(id) {
+        return new Promise((resolve, reject) => {
+          db.get(
+            'SELECT * FROM reservations WHERE id = ?',
+            [id],
+            (err, row) => err ? reject(err) : resolve(row || null)
+          );
+        });
+      }
 };

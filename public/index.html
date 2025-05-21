@@ -5,142 +5,94 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Reservación de Contenedores • TuBox</title>
 
-  <!-- Montserrat Font -->
-  <link
-    href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap"
-    rel="stylesheet"
-  />
+  <!-- Montserrat -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet" />
 
   <style>
-    body {
-      font-family: 'Montserrat', sans-serif;
-      background: #f5f5f5;
-      margin: 0; padding: 0;
-    }
-    header {
-      background: #fff;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      padding: 1rem;
-      text-align: center;
-      position: sticky; top: 0;
-      z-index: 100;
-    }
-    header h1 {
-      margin: 0;
-      font-size: 1.5rem;
-      color: #333;
-    }
-    main {
-      padding: 2rem 1rem;
-    }
-    .container {
-      max-width: 500px;
-      margin: 0 auto;
-    }
-    .card {
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      padding: 1.5rem;
-    }
-    h2 {
-      margin-top: 0;
-      color: #333;
-      font-weight: 600;
-      text-align: center;
-    }
-    .size-image {
-      width: 100%;
-      max-width: 250px;
-      display: block;
-      margin: 0 auto 1rem;
-    }
-    .form-group {
-      margin-bottom: 1rem;
-    }
-    .form-group label {
-      display: block;
-      margin-bottom: .5rem;
-      font-weight: 600;
-      color: #333;
-    }
-    .form-group select,
-    .form-group input {
-      width: 100%;
-      padding: .6rem .75rem;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 1rem;
-      transition: border-color .2s;
-    }
-    .form-group select:focus,
-    .form-group input:focus {
-      outline: none;
-      border-color: #ff6600;
-    }
-    .form-group.select-group {
-      position: relative;
-    }
-    .availability-badge {
-      position: absolute;
-      top: 50%;
-      right: 0.75rem;
-      transform: translateY(-50%);
-      background: #e63900;
-      color: #fff;
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.75rem;
-      pointer-events: none;
-    }
-    button {
-      width: 100%;
-      padding: .75rem;
-      font-size: 1rem;
-      font-weight: 600;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background .2s;
-      margin-top: 1rem;
-    }
-    .btn-primary {
-      background: #ff6600;
-      color: #fff;
-    }
-    .btn-primary:hover {
-      background: #e65500;
-    }
-    .btn-primary:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    .btn-secondary {
-      background: #007bff;
-      color: #fff;
-    }
-    .btn-secondary:hover {
-      background: #0069d9;
-    }
-    #quoteResult {
-      text-align: center;
-      margin-top: 1rem;
-      font-size: 1.1rem;
-      font-weight: 600;
-      color: #333;
-    }
+    body { font-family:'Montserrat',sans-serif; background:#f5f5f5; margin:0; padding:0;}
+    header { background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.1); padding:1rem; position:sticky;top:0;z-index:100; text-align:center;}
+    header h1 { margin:0;color:#333;}
+    header nav a { margin:0 .5rem; text-decoration:none; color:#007bff; font-weight:600;}
+    header nav a:hover { text-decoration:underline;}
+    main { padding:2rem 1rem;}
+    .container { max-width:500px; margin:0 auto;}
+    .card { background:#fff; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.08); padding:1.5rem; }
+    h2 { margin-top:0; color:#333; font-weight:600; text-align:center;}
+    .size-image { width:100%; max-width:250px; display:block; margin:0 auto 1rem;}
+    .form-group { margin-bottom:1rem;}
+    .form-group label { display:block; margin-bottom:.5rem; font-weight:600; color:#333;}
+    .form-group select, .form-group input { width:100%; padding:.6rem .75rem; border:1px solid #ccc; border-radius:4px; font-size:1rem; transition:border-color .2s;}
+    .form-group select:focus, .form-group input:focus { outline:none; border-color:#ff6600;}
+    .select-group { position:relative;}
+    .availability-badge { position:absolute; top:50%; right:.75rem; transform:translateY(-50%); background:#e63900; color:#fff; padding:.2rem .5rem; border-radius:4px; font-size:.75rem; pointer-events:none;}
+    button { width:100%; padding:.75rem; font-size:1rem; font-weight:600; border:none; border-radius:4px; cursor:pointer; transition:background .2s; margin-top:1rem;}
+    .btn-primary { background:#ff6600; color:#fff;}
+    .btn-primary:hover { background:#e65500;}
+    .btn-primary:disabled { opacity:.6; cursor:not-allowed;}
+    .btn-secondary { background:#007bff; color:#fff;}
+    .btn-secondary:hover { background:#0069d9;}
+    #quoteResult { text-align:center; margin-top:1rem; font-size:1.1rem; font-weight:600; color:#333;}
+    /* 1) Make the card full-width and remove max-width constraints */
+  .admin-card {
+    width: 100%;
+    margin: 1rem 0;
+    padding: 1rem;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  }
+
+  /* 2) Responsive wrapper so the table can scroll on small screens */
+  .table-responsive {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  /* 3) Table takes 100% of its container and uses fixed layout */
+  #adminTable {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+  #adminTable th,
+  #adminTable td {
+    border: 1px solid #ddd;
+    padding: 0.75rem;
+    word-wrap: break-word;
+  }
+
+  /* 4) Alternate row striping for readability */
+  #adminTable tbody tr:nth-child(odd) {
+    background-color: #fafafa;
+  }
+
+  /* 5) Softer header background to match the card */
+  #adminTable thead th {
+    background-color: #f0f0f0;
+  }
+
+  /* 6) Tweak button styling so it sits nicely in the last column */
+  .btn-cancel {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
   </style>
 </head>
 
 <body>
   <header>
     <h1>Reservación de Contenedores</h1>
+    <nav>
+      <a href="#quote">Cotizar</a> |
+      <a href="#lookup">Mis Reservas</a> |
+      <a href="#metrics">Métricas</a> |
+      <!-- <a href="#admin-auth">Administración</a> -->
+      <a href="#admin">Administración</a>
+    </nav>
   </header>
 
-  <main id="app">
-    <!-- SPA will render here -->
-  </main>
-
+  <main id="app"></main>
   <script src="script.js"></script>
 </body>
 </html>

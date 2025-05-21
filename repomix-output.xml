@@ -1,0 +1,1272 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+.env.example
+.gitignore
+dao/dataFacade.js
+dao/memoryDao.js
+dao/sqliteDao.js
+migrations/002_add_status_to_reservations.js
+migrations/003_add_branch_to_inventory_and_reservations.js
+migrations/seed.js
+package.json
+public/index.html
+public/script.js
+README.md
+routes/cancel.js
+routes/inventory.js
+routes/metrics.js
+routes/quote.js
+routes/reservation.js
+routes/reserve.js
+server.js
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="migrations/002_add_status_to_reservations.js">
+// migrations/002_add_status_to_reservations.js
+
+const path    = require('path');
+const sqlite3 = require('sqlite3').verbose();
+
+// 1) Define the migration steps
+async function up(db) {
+  await run(db, `
+    CREATE TABLE IF NOT EXISTS _reservations_new (
+      id           TEXT PRIMARY KEY,
+      size         TEXT,
+      quantity     INTEGER,
+      startDate    TEXT,
+      endDate      TEXT,
+      customerName TEXT,
+      customerEmail TEXT,
+      customerPhone TEXT,
+      quote        REAL,
+      timestamp    TEXT,
+      status       TEXT      DEFAULT 'active',
+      cancelledAt  TEXT
+    );
+  `);
+
+  await run(db, `
+    INSERT INTO _reservations_new (
+      id, size, quantity, startDate, endDate,
+      customerName, customerEmail, customerPhone, quote, timestamp
+    )
+    SELECT 
+      id, size, quantity, startDate, endDate,
+      customerName, customerEmail, customerPhone, quote, timestamp
+    FROM reservations;
+  `);
+
+  await run(db, `DROP TABLE reservations;`);
+  await run(db, `ALTER TABLE _reservations_new RENAME TO reservations;`);
+}
+
+async function down(db) {
+  await run(db, `
+    CREATE TABLE IF NOT EXISTS _reservations_old (
+      id           TEXT PRIMARY KEY,
+      size         TEXT,
+      quantity     INTEGER,
+      startDate    TEXT,
+      endDate      TEXT,
+      customerName TEXT,
+      customerEmail TEXT,
+      customerPhone TEXT,
+      quote        REAL,
+      timestamp    TEXT
+    );
+  `);
+
+  await run(db, `
+    INSERT INTO _reservations_old (
+      id, size, quantity, startDate, endDate,
+      customerName, customerEmail, customerPhone, quote, timestamp
+    )
+    SELECT 
+      id, size, quantity, startDate, endDate,
+      customerName, customerEmail, customerPhone, quote, timestamp
+    FROM reservations;
+  `);
+
+  await run(db, `DROP TABLE reservations;`);
+  await run(db, `ALTER TABLE _reservations_old RENAME TO reservations;`);
+}
+
+// helper to promisify db.run
+function run(db, sql) {
+  return new Promise((resolve, reject) => {
+    db.exec(sql, err => err ? reject(err) : resolve());
+  });
+}
+
+// export for programmatic use
+module.exports = { up, down };
+
+// allow this script to be run directly
+if (require.main === module) {
+  const dbFile = path.join(__dirname, '../data/demo.db');
+  const db     = new sqlite3.Database(dbFile);
+
+  up(db)
+    .then(() => {
+      console.log('✅ Migration 002_add_status_to_reservations applied.');
+      db.close();
+    })
+    .catch(err => {
+      console.error('❌ Migration failed:', err);
+      db.close();
+      process.exit(1);
+    });
+}
+</file>
+
+<file path="migrations/003_add_branch_to_inventory_and_reservations.js">
+// migrations/003_add_branch_to_reservations.js
+
+const path    = require('path');
+const sqlite3 = require('sqlite3').verbose();
+
+// Helper to promisify db.exec
+function run(db, sql) {
+  return new Promise((resolve, reject) => {
+    db.exec(sql, err => err ? reject(err) : resolve());
+  });
+}
+
+async function up(db) {
+  // Only add branch to reservations (seed.py already built branch-aware inventory)
+  await run(db, `
+    ALTER TABLE reservations
+    ADD COLUMN branch TEXT DEFAULT 'MAIN';
+  `);
+}
+
+async function down(db) {
+  // Remove the branch column by recreating original table
+  await run(db, `
+    CREATE TABLE IF NOT EXISTS _reservations_old (
+      id             TEXT PRIMARY KEY,
+      size           TEXT,
+      quantity       INTEGER,
+      startDate      TEXT,
+      endDate        TEXT,
+      customerName   TEXT,
+      customerEmail  TEXT,
+      customerPhone  TEXT,
+      quote          REAL,
+      timestamp      TEXT,
+      status         TEXT      DEFAULT 'active',
+      cancelledAt    TEXT
+    );
+  `);
+  await run(db, `
+    INSERT INTO _reservations_old (
+      id, size, quantity, startDate, endDate,
+      customerName, customerEmail, customerPhone,
+      quote, timestamp, status, cancelledAt
+    )
+    SELECT
+      id, size, quantity, startDate, endDate,
+      customerName, customerEmail, customerPhone,
+      quote, timestamp, status, cancelledAt
+    FROM reservations;
+  `);
+  await run(db, `DROP TABLE reservations;`);
+  await run(db, `ALTER TABLE _reservations_old RENAME TO reservations;`);
+}
+
+module.exports = { up, down };
+
+// If you run this file directly:
+if (require.main === module) {
+  const dbFile = path.join(__dirname, '../data/demo.db');
+  const db     = new sqlite3.Database(dbFile);
+  up(db)
+    .then(() => {
+      console.log('✅ Migration 003_add_branch_to_reservations applied.');
+      db.close();
+    })
+    .catch(err => {
+      console.error('❌ Migration 003 failed:', err);
+      db.close();
+      process.exit(1);
+    });
+}
+</file>
+
+<file path="routes/cancel.js">
+// routes/cancel.js
+
+const express = require('express');
+const dao     = require('../dao/dataFacade');
+const router  = express.Router();
+
+router.delete('/', async (req, res) => {
+  const { id, email } = req.body || {};
+  if (!id || !email) {
+    return res.status(400).json({ error: 'faltan campos' });
+  }
+
+  try {
+    // 1) fetch reservation
+    const r = await dao.getReservation(id, email);
+    if (!r) {
+      return res.status(404).json({ error: 'Reserva no encontrada' });
+    }
+    if (r.status === 'cancelled') {
+      return res.status(400).json({ error: 'Ya está cancelada' });
+    }
+
+    // 2) cancel & release inventory
+    await dao.cancelReservation(id, email);
+    await dao.releaseInventory(r.size, r.quantity, r.branch);
+
+    // 3) return updated inventory
+    const inv = await dao.getInventory(r.branch);
+    res.json({ inventory: inv, cancelled: true });
+  } catch (err) {
+    console.error('Cancel error', err);
+    res.status(500).json({ error: 'error interno' });
+  }
+});
+
+module.exports = router;
+</file>
+
+<file path="routes/metrics.js">
+// routes/metrics.js
+
+const express = require('express');
+const dao     = require('../dao/dataFacade');
+const router  = express.Router();
+
+router.get('/cancellations', async (req, res) => {
+  try {
+    const count = await dao.getCancellationMetrics();
+    res.json({ cancelledReservations: count });
+  } catch (err) {
+    console.error('Metrics error', err);
+    res.status(500).json({ error: 'error interno' });
+  }
+});
+
+module.exports = router;
+</file>
+
+<file path="routes/reservation.js">
+// routes/reservation.js
+
+const express = require('express');
+const dao     = require('../dao/dataFacade');
+const router  = express.Router();
+
+router.get('/', async (req, res) => {
+  const { id, email } = req.query || {};
+  if (!id || !email) {
+    return res.status(400).json({ error: 'faltan id o email' });
+  }
+
+  try {
+    const r = await dao.getReservation(id, email);
+    if (!r) {
+      return res.status(404).json({ error: 'Reserva no encontrada' });
+    }
+    res.json(r);
+  } catch (err) {
+    console.error('Lookup error', err);
+    res.status(500).json({ error: 'error interno' });
+  }
+});
+
+module.exports = router;
+</file>
+
+<file path=".env.example">
+PORT=7071
+DATABASE_FILE=./data/demo.db
+</file>
+
+<file path=".gitignore">
+# dependencies
+node_modules/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# macOS
+.DS_Store
+
+# IDEs
+.vscode/
+</file>
+
+<file path="dao/dataFacade.js">
+// dao/dataFacade.js
+
+// pick your implementation:
+let impl = null;
+try {
+  impl = require('./sqliteDao');
+} catch(_) {
+  impl = require('./memoryDao');
+}
+
+module.exports = {
+  getInventory:        (...args) => impl.getInventory(...args),
+  adjustInventory:     (...args) => impl.adjustInventory(...args),
+  releaseInventory:    (...args) => impl.releaseInventory(...args),
+  createReservation:   (res)    => impl.createReservation(res),
+  getReservation:      (id,em)  => impl.getReservation(id,em),
+  cancelReservation:   (id,em)  => impl.cancelReservation(id,em),
+  getCancellationMetrics: ()    => impl.getCancellationMetrics()
+};
+</file>
+
+<file path="dao/memoryDao.js">
+// dao/memoryDao.js
+
+// in-memory store: branches → sizes
+const inventoryStore = {
+  MAIN: { small:3, medium:6, large:9, xlarge:12 },
+  // you can seed other branches here
+};
+
+// simple reservation store
+const reservations = [];
+
+module.exports = {
+  async getInventory(branch = 'MAIN') {
+    return { ... (inventoryStore[branch] || {}) };
+  },
+
+  async adjustInventory(size, qty, branch = 'MAIN') {
+    inventoryStore[branch][size] -= qty;
+  },
+
+  async releaseInventory(size, qty, branch = 'MAIN') {
+    inventoryStore[branch][size] += qty;
+  },
+
+  async createReservation(res) {
+    reservations.push({ ...res });
+  },
+
+  async getReservation(id, email) {
+    return reservations.find(r =>
+      r.id === id && r.customerEmail === email
+    ) || null;
+  },
+
+  async cancelReservation(id, email) {
+    const r = reservations.find(x =>
+      x.id === id && x.customerEmail === email
+    );
+    if (r) {
+      r.status = 'cancelled';
+      r.cancelledAt = new Date().toISOString();
+    }
+  },
+
+  async getCancellationMetrics() {
+    return reservations.filter(r => r.status === 'cancelled').length;
+  }
+};
+</file>
+
+<file path="dao/sqliteDao.js">
+// dao/sqliteDao.js
+
+const sqlite3 = require('sqlite3').verbose();
+const path    = require('path');
+const dbFile  = path.join(__dirname, '../data/demo.db');
+const db      = new sqlite3.Database(dbFile);
+
+module.exports = {
+  getInventory(branch = 'MAIN') {
+    return new Promise((resolve, reject) => {
+      db.all(
+        'SELECT size, available FROM inventory WHERE branch = ?',
+        [branch],
+        (err, rows) => {
+          if (err) return reject(err);
+          const out = {};
+          rows.forEach(r => out[r.size] = r.available);
+          resolve(out);
+        }
+      );
+    });
+  },
+
+  adjustInventory(size, qty, branch = 'MAIN') {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE inventory SET available = available - ? WHERE branch = ? AND size = ?',
+        [qty, branch, size],
+        err => err ? reject(err) : resolve()
+      );
+    });
+  },
+
+  releaseInventory(size, qty, branch = 'MAIN') {
+    return new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE inventory SET available = available + ? WHERE branch = ? AND size = ?',
+        [qty, branch, size],
+        err => err ? reject(err) : resolve()
+      );
+    });
+  },
+
+  createReservation(res) {
+    const {
+      id, branch, size, quantity,
+      startDate, endDate,
+      customerName, customerEmail, customerPhone,
+      quote, timestamp, status = 'active', cancelledAt = null
+    } = res;
+    return new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO reservations (
+           id, branch, size, quantity,
+           startDate, endDate,
+           customerName, customerEmail, customerPhone,
+           quote, timestamp, status, cancelledAt
+         ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          id, branch, size, quantity,
+          startDate, endDate,
+          customerName, customerEmail, customerPhone,
+          quote, timestamp, status, cancelledAt
+        ],
+        err => err ? reject(err) : resolve()
+      );
+    });
+  },
+
+  getReservation(id, email) {
+    return new Promise((resolve, reject) => {
+      db.get(
+        `SELECT * FROM reservations
+         WHERE id = ? AND customerEmail = ?`,
+        [id, email],
+        (err, row) => err
+          ? reject(err)
+          : resolve(row || null)
+      );
+    });
+  },
+
+  cancelReservation(id, email) {
+    const now = new Date().toISOString();
+    return new Promise((resolve, reject) => {
+      db.run(
+        `UPDATE reservations
+         SET status = 'cancelled',
+             cancelledAt = ?
+         WHERE id = ? AND customerEmail = ?`,
+        [now, id, email],
+        err => err ? reject(err) : resolve()
+      );
+    });
+  },
+
+  getCancellationMetrics() {
+    return new Promise((resolve, reject) => {
+      db.get(
+        `SELECT COUNT(*) AS cnt
+         FROM reservations
+         WHERE status = 'cancelled'`,
+        (err, row) => err
+          ? reject(err)
+          : resolve(row.cnt)
+      );
+    });
+  }
+};
+</file>
+
+<file path="migrations/seed.js">
+// migrations/seed.js
+const fs      = require('fs');
+const path    = require('path');
+const sqlite3 = require('sqlite3').verbose();
+
+const DB_DIR  = './data';
+const DB_FILE = process.env.DATABASE_FILE || path.join(DB_DIR, 'demo.db');
+
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR);
+
+const db = new sqlite3.Database(DB_FILE);
+
+db.serialize(() => {
+  //
+  // 1) Schema: branch-aware inventory + updated reservations
+  //
+  db.run(`
+    CREATE TABLE IF NOT EXISTS inventory (
+      branch    TEXT,
+      size      TEXT,
+      available INTEGER,
+      PRIMARY KEY(branch, size)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS reservations (
+      id             TEXT PRIMARY KEY,
+      branch         TEXT,
+      size           TEXT,
+      quantity       INTEGER,
+      startDate      TEXT,
+      endDate        TEXT,
+      customerName   TEXT,
+      customerEmail  TEXT,
+      customerPhone  TEXT,
+      quote          REAL,
+      timestamp      TEXT,
+      status         TEXT      DEFAULT 'active',
+      cancelledAt    TEXT
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS lastQuote (
+      id    INTEGER PRIMARY KEY,
+      quote REAL
+    )
+  `);
+  db.run(`INSERT OR IGNORE INTO lastQuote (id, quote) VALUES (1, 0)`);
+
+  //
+  // 2) Seed inventory for each branch
+  //
+  const seedByBranch = {
+    MAIN:   { small: 3,  medium: 6,  large: 9,  xlarge: 12 },
+    NORTE:  { small: 5,  medium: 4,  large: 8,  xlarge: 10 },
+    SUR:    { small: 2,  medium: 3,  large: 5,  xlarge: 7 }
+  };
+
+  const stmt = db.prepare(
+    `INSERT OR REPLACE INTO inventory (branch, size, available)
+     VALUES (?, ?, ?)`
+  );
+
+  for (const [branch, sizes] of Object.entries(seedByBranch)) {
+    for (const [size, avail] of Object.entries(sizes)) {
+      stmt.run(branch, size, avail);
+    }
+  }
+  stmt.finalize();
+
+  console.log('Database seeded with branch-aware inventory:', seedByBranch);
+  db.close();
+});
+</file>
+
+<file path="package.json">
+{
+  "name": "container-reservation-demo",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "migrate": "node migrations/seed.js && node migrations/002_add_status_to_reservations.js && node migrations/003_add_branch_to_inventory_and_reservations.js",
+    "migrate:seed": "node migrations/seed.js",
+    "migrate:status": "node migrations/002_add_status_to_reservations.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.1.4",
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.6",
+    "twilio": "^5.6.1",
+    "uuid": "^9.0.0"
+  }
+}
+</file>
+
+<file path="public/index.html">
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reservación de Contenedores • TuBox</title>
+
+  <!-- Montserrat -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    body { font-family:'Montserrat',sans-serif; background:#f5f5f5; margin:0; padding:0;}
+    header { background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.1); padding:1rem; position:sticky;top:0;z-index:100; text-align:center;}
+    header h1 { margin:0;color:#333;}
+    header nav a { margin:0 .5rem; text-decoration:none; color:#007bff; font-weight:600;}
+    header nav a:hover { text-decoration:underline;}
+    main { padding:2rem 1rem;}
+    .container { max-width:500px; margin:0 auto;}
+    .card { background:#fff; border-radius:8px; box-shadow:0 4px 12px rgba(0,0,0,0.08); padding:1.5rem; }
+    h2 { margin-top:0; color:#333; font-weight:600; text-align:center;}
+    .size-image { width:100%; max-width:250px; display:block; margin:0 auto 1rem;}
+    .form-group { margin-bottom:1rem;}
+    .form-group label { display:block; margin-bottom:.5rem; font-weight:600; color:#333;}
+    .form-group select, .form-group input { width:100%; padding:.6rem .75rem; border:1px solid #ccc; border-radius:4px; font-size:1rem; transition:border-color .2s;}
+    .form-group select:focus, .form-group input:focus { outline:none; border-color:#ff6600;}
+    .select-group { position:relative;}
+    .availability-badge { position:absolute; top:50%; right:.75rem; transform:translateY(-50%); background:#e63900; color:#fff; padding:.2rem .5rem; border-radius:4px; font-size:.75rem; pointer-events:none;}
+    button { width:100%; padding:.75rem; font-size:1rem; font-weight:600; border:none; border-radius:4px; cursor:pointer; transition:background .2s; margin-top:1rem;}
+    .btn-primary { background:#ff6600; color:#fff;}
+    .btn-primary:hover { background:#e65500;}
+    .btn-primary:disabled { opacity:.6; cursor:not-allowed;}
+    .btn-secondary { background:#007bff; color:#fff;}
+    .btn-secondary:hover { background:#0069d9;}
+    #quoteResult { text-align:center; margin-top:1rem; font-size:1.1rem; font-weight:600; color:#333;}
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Reservación de Contenedores</h1>
+    <nav>
+      <a href="#quote">Cotizar</a> |
+      <a href="#lookup">Mis Reservas</a> |
+      <a href="#metrics">Métricas</a>
+    </nav>
+  </header>
+
+  <main id="app"></main>
+  <script src="script.js"></script>
+</body>
+</html>
+</file>
+
+<file path="public/script.js">
+// public/script.js
+
+const API_QUOTE    = '/api/quote';
+const API_RESERVE  = '/api/reserve';
+const API_CANCEL   = '/api/cancel';
+const API_LOOKUP   = '/api/reservation';
+const API_METRICS  = '/api/metrics/cancellations';
+const app          = document.getElementById('app');
+const BRANCH_DISPLAY = {
+    'MAIN': 'Centro',
+    'NORTE': 'Sucursal Norte',
+    'SUR': 'Sucursal Sur'
+  };
+  
+
+let current = {}; // holds branch, size, qty, days, dates, quote…
+
+// ----------------------
+// VIEW: Quote
+// ----------------------
+async function renderQuoteView() {
+  // 1) Branch selector + fetch inventory
+  app.innerHTML = `
+    <div class="container"><div class="card">
+      <h2>Obtener Cotización</h2>
+      <div class="form-group">
+        <label for="branch">Sucursal</label>
+        <select id="branch">
+          <option value="MAIN">Centro</option>
+          <option value="NORTE">Norte</option>
+          <option value="SUR">Sur</option>
+        </select>
+      </div>
+      <img id="sizeImg" class="size-image" src="" alt="" />
+      <form id="qtForm">
+        <div class="form-group select-group">
+          <label for="size">Tamaño del contenedor</label>
+          <select id="size">
+            <option value="small">S – 3.72 m²</option>
+            <option value="medium">M – 7.44 m²</option>
+            <option value="large">L – 14.88 m²</option>
+            <option value="xlarge">XL – 29.76 m²</option>
+          </select>
+          <div id="availBadge" class="availability-badge"></div>
+        </div>
+        <div class="form-group">
+          <label for="qty">Cantidad</label>
+          <input id="qty" type="number" min="1" value="1" />
+        </div>
+        <div class="form-group">
+          <label for="days">Días de renta</label>
+          <input id="days" type="number" min="1" value="1" />
+        </div>
+        <div class="form-group">
+          <label for="startDate">Fecha de inicio</label>
+          <input id="startDate" type="date" />
+        </div>
+        <div class="form-group">
+          <label for="endDate">Fecha de fin</label>
+          <input id="endDate" type="date" readonly />
+        </div>
+        <button type="submit" class="btn-primary">Calcular</button>
+      </form>
+      <div id="quoteResult"></div>
+    </div></div>`;
+
+  // DOM refs
+  const branchEl    = document.getElementById('branch');
+  const sizeEl      = document.getElementById('size');
+  const badgeEl     = document.getElementById('availBadge');
+  const sizeImg     = document.getElementById('sizeImg');
+  const qtyEl       = document.getElementById('qty');
+  const daysEl      = document.getElementById('days');
+  const startDateEl = document.getElementById('startDate');
+  const endDateEl   = document.getElementById('endDate');
+  const formEl      = document.getElementById('qtForm');
+  const resultEl    = document.getElementById('quoteResult');
+  const calcBtn     = formEl.querySelector('button');
+
+  // size → image map
+  const sizeImages = {
+    small:  'https://static.wixstatic.com/media/6d2a72_c166d4cf4252477c88d919046a669d06~mv2_d_2366_1897_s_2.png',
+    medium: 'https://static.wixstatic.com/media/6d2a72_fb82dd290fbc465ba0a146841d84ad5a~mv2.png',
+    large:  'https://static.wixstatic.com/media/6d2a72_bf60b4614f4e4ce2a56596930365d561~mv2_d_2366_1882_s_2.png',
+    xlarge: 'https://static.wixstatic.com/media/6d2a72_6dbc3c572b774b29a5d879ed8508eb1e~mv2_d_2366_1744_s_2.png'
+  };
+
+  let availability = {};
+
+  // fetch inventory for the selected branch
+  async function fetchInv() {
+    const b = branchEl.value;
+    try {
+      const resp = await fetch(`/api/inventory?branch=${b}`);
+      availability = resp.ok ? await resp.json() : {};
+    } catch {
+      availability = {};
+    }
+    updateBadge();
+    updateCalcButton();
+  }
+
+  // badge + image updater
+  function updateBadge() {
+    const sz    = sizeEl.value;
+    const avail = availability[sz] || 0;
+    badgeEl.textContent = `Disponibles: ${avail}`;
+    sizeImg.src         = sizeImages[sz];
+    sizeImg.alt         = `Contenedor ${sz.toUpperCase()}`;
+  }
+
+  // compute end date
+  function recalcEnd() {
+    if (!startDateEl.value) return endDateEl.value = '';
+    const d = new Date(startDateEl.value);
+    d.setDate(d.getDate() + parseInt(daysEl.value,10));
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const dd= String(d.getDate()).padStart(2,'0');
+    endDateEl.value = `${y}-${m}-${dd}`;
+  }
+
+  // enable/disable calc button
+  function updateCalcButton() {
+    const qty   = parseInt(qtyEl.value,10)||0;
+    const avail = availability[sizeEl.value]||0;
+    calcBtn.disabled = !startDateEl.value || qty<1 || qty>avail;
+  }
+
+  // initial load
+  await fetchInv();
+  recalcEnd();
+  updateCalcButton();
+
+  // event listeners
+  branchEl.addEventListener('change', fetchInv);
+  sizeEl.addEventListener('change', updateBadge);
+  qtyEl.addEventListener('input', updateCalcButton);
+  daysEl.addEventListener('input', () => { recalcEnd(); updateCalcButton(); });
+  startDateEl.addEventListener('change', () => { recalcEnd(); updateCalcButton(); });
+
+  // form submit → /api/quote
+  formEl.addEventListener('submit', async e => {
+    e.preventDefault();
+    const branch   = branchEl.value;
+    const size     = sizeEl.value;
+    const quantity = parseInt(qtyEl.value,10);
+    const days     = parseInt(daysEl.value,10);
+    const startDate= startDateEl.value;
+    const endDate  = endDateEl.value;
+    if (!startDate) return resultEl.textContent = 'Por favor ingresa la fecha de inicio.';
+
+    try {
+      const resp = await fetch(API_QUOTE, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({branch,size,quantity,days})
+      });
+      const js = await resp.json();
+      if (!resp.ok) return resultEl.textContent = js.error;
+      current = { branch, size, quantity, days, startDate, endDate, quote: js.quote };
+      resultEl.textContent = `Cotización: $${js.quote} MXN`;
+      location.hash = '#confirm';
+    } catch {
+      resultEl.textContent = 'Error de red al cotizar';
+    }
+  });
+}
+
+// ----------------------
+// VIEW: Confirm
+// ----------------------
+function renderConfirmView() {
+    const { branch, size, quantity, days, startDate, endDate, quote } = current;
+    app.innerHTML = `
+      <div class="container"><div class="card">
+        <h2>Confirmar Cotización</h2>
+        <p><strong>Sucursal:</strong> ${BRANCH_DISPLAY[branch] || branch}</p>
+        <p><strong>Tamaño:</strong> ${size.toUpperCase()}</p>
+        <p><strong>Cantidad:</strong> ${quantity}</p>
+        <p><strong>Días de renta:</strong> ${days}</p>
+        <p><strong>Fecha inicio:</strong> ${startDate}</p>
+        <p><strong>Fecha fin:</strong> ${endDate}</p>
+        <p><strong>Total:</strong> $${quote} MXN</p>
+  
+        <div class="form-group">
+          <label for="customerName">Nombre completo</label>
+          <input id="customerName" type="text" />
+        </div>
+        <div class="form-group">
+          <label for="customerEmail">Email</label>
+          <input id="customerEmail" type="email" />
+        </div>
+        <div class="form-group">
+          <label for="customerPhone">Teléfono</label>
+          <input id="customerPhone" type="tel" />
+        </div>
+  
+        <button id="btnConfirm" class="btn-primary">Confirmar Reserva</button>
+        <button id="btnBack" class="btn-secondary">← Volver</button>
+        <div id="errorMsg" style="color:red;margin-top:1rem;"></div>
+      </div></div>`;
+  
+    document.getElementById('btnBack')
+      .addEventListener('click', () => location.hash = '#quote');
+  
+    document.getElementById('btnConfirm')
+      .addEventListener('click', () => {
+        const name  = document.getElementById('customerName').value.trim();
+        const email = document.getElementById('customerEmail').value.trim();
+        const phone = document.getElementById('customerPhone').value.trim();
+        const msgEl = document.getElementById('errorMsg');
+  
+        if (!name || !email || !phone) {
+          msgEl.textContent = 'Por favor completa todos los campos del cliente';
+          return;
+        }
+  
+        current.customerName = name;
+        current.customerEmail = email;
+        current.customerPhone = phone;
+  
+        location.hash = '#reserve';
+      });
+  }  
+
+// ----------------------
+// VIEW: Reserve
+// ----------------------
+function renderReserveView() {
+    app.innerHTML = `
+      <div class="container"><div class="card">
+        <h2>Procesando Reserva…</h2>
+        <p id="reserveMsg">Espere un momento.</p>
+      </div></div>`;
+  
+    (async () => {
+      const msgEl = document.getElementById('reserveMsg');
+      console.log('Sending payload to /api/reserve:', current);
+  
+      try {
+        const resp = await fetch(API_RESERVE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(current)
+        });
+        const js = await resp.json();
+        if (!resp.ok) throw new Error(js.error);
+  
+        app.innerHTML = `
+          <div class="container"><div class="card">
+            <h2>¡Reserva confirmada!</h2>
+            <p>Tu ID: ${js.reservationId}</p>
+            ${js.waSent ? `<p style="color:#2d9cdb;">📱 Confirmación enviada por WhatsApp</p>` : ''}
+            <button class="btn-secondary" onclick="location.hash='#quote'">← Nueva Cotización</button>
+          </div></div>`;
+  
+        current.inventory = js.inventory;
+      } catch (err) {
+        msgEl.textContent = err.message;
+      }
+    })();
+  }  
+
+// ----------------------
+// VIEW: Lookup
+// ----------------------
+function renderLookupView() {
+  app.innerHTML = `
+    <div class="container"><div class="card">
+      <h2>Buscar Reserva</h2>
+      <form id="lkForm">
+        <div class="form-group">
+          <label for="lkId">ID de reserva</label>
+          <input id="lkId" type="text" required />
+        </div>
+        <div class="form-group">
+          <label for="lkEmail">Email usado</label>
+          <input id="lkEmail" type="email" required />
+        </div>
+        <button class="btn-primary">Buscar</button>
+      </form>
+      <div id="lookupResult" style="margin-top:1rem;"></div>
+    </div></div>`;
+
+  document.getElementById('lkForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const id    = document.getElementById('lkId').value.trim();
+    const email = document.getElementById('lkEmail').value.trim();
+    const resEl = document.getElementById('lookupResult');
+    resEl.textContent = 'Buscando…';
+
+    try {
+      const resp = await fetch(`${API_LOOKUP}?id=${encodeURIComponent(id)}&email=${encodeURIComponent(email)}`);
+      const js   = await resp.json();
+      if (!resp.ok) throw new Error(js.error);
+
+      resEl.innerHTML = `
+        <h3>Reserva encontrada:</h3>
+        <ul style="line-height:1.5">
+          <li><strong>ID:</strong> ${js.id}</li>
+          <li><strong>Sucursal:</strong> ${js.branch}</li>
+          <li><strong>Cliente:</strong> ${js.customerName} (${js.customerEmail})</li>
+          <li><strong>Teléfono:</strong> ${js.customerPhone}</li>
+          <li><strong>Tamaño:</strong> ${js.size.toUpperCase()}</li>
+          <li><strong>Cantidad:</strong> ${js.quantity}</li>
+          <li><strong>Fechas:</strong> ${js.startDate} → ${js.endDate}</li>
+          <li><strong>Total:</strong> $${js.quote} MXN</li>
+          <li><strong>Creada:</strong> ${new Date(js.timestamp).toLocaleString()}</li>
+        </ul>
+        <button id="btnCancel" class="btn-secondary" style="margin-top:1rem;">
+          Cancelar Reserva
+        </button>
+      `;
+
+      document.getElementById('btnCancel').onclick = () => {
+        current = js;  // stash for cancel
+        location.hash = '#cancel';
+      };
+    } catch (err) {
+      resEl.textContent = err.message;
+    }
+  });
+}
+
+// ----------------------
+// VIEW: Confirm Cancellation
+// ----------------------
+function renderCancelView() {
+  const { id, branch, size, quantity, customerName } = current;
+  app.innerHTML = `
+    <div class="container"><div class="card">
+      <h2>Confirmar Cancelación</h2>
+      <p>Reserva <strong>${id}</strong></p>
+      <p><strong>Sucursal:</strong> ${branch}</p>
+      <p><strong>Cliente:</strong> ${customerName}</p>
+      <p><strong>Contenedor:</strong> ${size.toUpperCase()} ×${quantity}</p>
+      <p>¿Deseas cancelar y liberar el inventario?</p>
+      <button id="btnYes" class="btn-primary">Sí, cancelar</button>
+      <button id="btnNo"  class="btn-secondary">← Volver</button>
+      <p id="cancelMsg" style="color:red; margin-top:1rem;"></p>
+    </div></div>`;
+
+  document.getElementById('btnNo').onclick = () => location.hash = '#lookup';
+  document.getElementById('btnYes').onclick = async () => {
+    const msgEl = document.getElementById('cancelMsg');
+    msgEl.textContent = '';
+    try {
+      const resp = await fetch(API_CANCEL, {
+        method:'DELETE', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ id: current.id, email: current.customerEmail })
+      });
+      const js = await resp.json();
+      if (!resp.ok) throw new Error(js.error);
+      msgEl.style.color = 'green';
+      msgEl.textContent = 'Reserva cancelada correctamente';
+      // update badge inventory
+      current.inventory = js.inventory;
+    } catch (err) {
+      msgEl.textContent = err.message;
+    }
+  };
+}
+
+// ----------------------
+// VIEW: Metrics
+// ----------------------
+async function renderMetricsView() {
+  app.innerHTML = `
+    <div class="container"><div class="card">
+      <h2>Métricas</h2>
+      <p>Cancelaciones totales: <strong id="cancelCount">…</strong></p>
+      <button class="btn-secondary" onclick="location.hash='#quote'">← Volver</button>
+    </div></div>`;
+  try {
+    const js = await fetch(API_METRICS).then(r => r.json());
+    document.getElementById('cancelCount').textContent = js.cancelledReservations;
+  } catch {
+    document.getElementById('cancelCount').textContent = 'error';
+  }
+}
+
+// ----------------------
+// Router
+// ----------------------
+function router() {
+  switch (location.hash) {
+    case '#confirm': renderConfirmView();   break;
+    case '#reserve': renderReserveView();   break;
+    case '#lookup' : renderLookupView();    break;
+    case '#cancel' : renderCancelView();    break;
+    case '#metrics': renderMetricsView();   break;
+    default:         renderQuoteView();     break;
+  }
+}
+
+window.addEventListener('hashchange', router);
+window.addEventListener('load', router);
+</file>
+
+<file path="README.md">
+# demo-quote
+</file>
+
+<file path="routes/inventory.js">
+// routes/inventory.js
+
+const express = require('express');
+const dao     = require('../dao/dataFacade');
+const router  = express.Router();
+
+router.get('/', async (req, res) => {
+  const branch = req.query.branch || 'MAIN';
+  try {
+    const inv = await dao.getInventory(branch);
+    res.json(inv);
+  } catch (err) {
+    console.error('Inventory error', err);
+    res.status(500).json({ error: 'error interno' });
+  }
+});
+
+module.exports = router;
+</file>
+
+<file path="routes/quote.js">
+// routes/quote.js
+
+const express = require('express');
+const dao     = require('../dao/dataFacade');
+const router  = express.Router();
+
+// Simple per-day pricing — you can also move this to env/config
+const PRICING = { small:10, medium:15, large:20, xlarge:30 };
+
+router.post('/', async (req, res) => {
+  const { branch = 'MAIN', size, quantity, days } = req.body || {};
+
+  if (!size || !quantity || !days) {
+    return res.status(400).json({ error: 'size, quantity and days are required.' });
+  }
+
+  try {
+    const inv = await dao.getInventory(branch);
+    if (!(size in inv)) {
+      return res.status(400).json({ error: 'invalid container size.' });
+    }
+    const qty = parseInt(quantity, 10);
+    if (qty > inv[size]) {
+      return res.status(400).json({ error: 'No hay suficiente inventario' });
+    }
+    const d = parseInt(days, 10);
+    const cost = qty * d * PRICING[size];
+    res.json({ quote: cost.toFixed(2) });
+  } catch (err) {
+    console.error('Quote error', err);
+    res.status(500).json({ error: 'error interno' });
+  }
+});
+
+module.exports = router;
+</file>
+
+<file path="routes/reserve.js">
+// routes/reserve.js
+
+const express   = require('express');
+const { v4: uuidv4 } = require('uuid');
+const dao       = require('../dao/dataFacade');
+const twilio    = require('twilio');
+const router    = express.Router();
+
+// Twilio credentials from .env
+const client      = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
+const FROM_WHATSAPP = process.env.TWILIO_WHATSAPP_FROM;
+
+router.post('/', async (req, res) => {
+  const b = req.body || {};
+  console.log('[DEBUG] Incoming request body:', b);  // <-- log the full request body
+
+  const {
+    branch, size, quantity,
+    startDate, endDate,
+    customerName, customerEmail, customerPhone,
+    quote
+  } = b;
+  
+
+  // validate
+  if (!branch || !size || !quantity || !startDate || !endDate || !customerName || !customerEmail || !customerPhone) {
+    return res.status(400).json({ error: 'faltan campos' });
+  }
+
+  try {
+    // 1) check & adjust inventory
+    const inv = await dao.getInventory(branch);
+    if (quantity > inv[size]) {
+      return res.status(400).json({ error: 'No hay suficiente inventario' });
+    }
+    await dao.adjustInventory(size, quantity, branch);
+
+    // 2) create reservation
+    const id = uuidv4();
+    const reservation = {
+      id, branch, size, quantity,
+      startDate, endDate,
+      customerName, customerEmail, customerPhone,
+      quote, timestamp: new Date().toISOString(),
+      status: 'active', cancelledAt: null
+    };
+    await dao.createReservation(reservation);
+
+    // 3) attempt WhatsApp send
+    let waSent = false;
+    try {
+      let num = customerPhone.replace(/\D/g,'');
+      if (num.startsWith('52')) num = num.slice(2);
+      const to = 'whatsapp:+521' + num;
+      const body = 
+        `¡Hola ${customerName}! Tu reserva (${id}) ha sido confirmada en la sucursal *${branch}* : \n` +
+        `• Contenedor: ${size.toUpperCase()} x${quantity}\n` +
+        `• Fechas: ${startDate} → ${endDate}\n` +
+        `• Total: $${quote} MXN`;
+      await client.messages.create({ from: FROM_WHATSAPP, to, body });
+      waSent = true;
+    } catch (e) {
+      console.warn('Twilio send failed', e);
+    }
+
+    // 4) return updated inventory + reservationId + waSent
+    const newInv = await dao.getInventory(branch);
+    res.json({ reservationId: id, inventory: newInv, waSent });
+  } catch (err) {
+    console.error('Reserve error', err);
+    res.status(500).json({ error: 'error interno' });
+  }
+});
+
+module.exports = router;
+</file>
+
+<file path="server.js">
+// server.js
+
+require('dotenv').config();
+const express = require('express');
+const path    = require('path');
+
+const inventoryRoute   = require('./routes/inventory');
+const quoteRoute       = require('./routes/quote');
+const reserveRoute     = require('./routes/reserve');
+const cancelRoute      = require('./routes/cancel');
+const reservationRoute = require('./routes/reservation');
+const metricsRoute     = require('./routes/metrics');
+
+const app = express();
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// API mounts
+app.use('/api/inventory',   inventoryRoute);
+app.use('/api/quote',       quoteRoute);
+app.use('/api/reserve',     reserveRoute);
+app.use('/api/cancel',      cancelRoute);
+app.use('/api/reservation', reservationRoute);
+app.use('/api/metrics',     metricsRoute);
+
+// fallback SPA
+app.get('*', (req, res) =>
+  res.sendFile(path.join(__dirname, 'public', 'index.html'))
+);
+
+const PORT = process.env.PORT || 7071;
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
+</file>
+
+</files>
